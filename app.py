@@ -3,6 +3,8 @@ import pandas as pd
 import MySQLdb
 import mysql.connector
 from datetime import datetime
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 # Page config
 st.set_page_config(page_title="Local Food Wastage Management", layout="wide")
@@ -34,6 +36,11 @@ if 'current_table_view' not in st.session_state:
 # In your actual app, 'choice' would be set by a navigation element (e.g., st.sidebar.radio)
 choice = st.sidebar.radio("Navigation", ["Home", "View Tables", "CRUD Operations", "SQL Queries & Visualizations", "Learner SQL Queries", "User Introduction"])
 
+if choice == "Home":
+    st.subheader("🏠 Home")
+    st.write("Welcome to the Local Food Wastage Management System!")
+    st.write("This app helps manage food donations, claims, and reduce wastage in local communities.")
+    st.markdown("---")
 
 if choice == "View Tables":
     st.subheader("📊 View Database Tables")
@@ -178,7 +185,7 @@ if choice == "View Tables":
             available_claim_statuses_df = pd.read_sql(claim_statuses_query, conn)
             available_claim_statuses = ["All"] + sorted(available_claim_statuses_df["status"].tolist())
 
-            min_max_date_query = "SELECT MIN(claim_date), MAX(claim_date) FROM claims"
+            min_max_date_query = "SELECT MIN(timestamp), MAX(timestamp) FROM claims"
             min_date_db, max_date_db = pd.read_sql(min_max_date_query, conn).iloc[0]
             # Convert to datetime.date objects for st.date_input
             min_date_db = min_date_db.date() if min_date_db else datetime.now().date()
@@ -211,7 +218,7 @@ if choice == "View Tables":
         if len(date_range) == 2:
             start_date = date_range[0]
             end_date = date_range[1]
-            query += " AND claim_date BETWEEN %s AND %s"
+            query += " AND timestamp BETWEEN %s AND %s"
             params.append(start_date.strftime('%Y-%m-%d'))
             params.append(end_date.strftime('%Y-%m-%d'))
         
@@ -293,7 +300,7 @@ elif choice == "CRUD Operations":
                             cursor = conn.cursor()
                             cursor.execute(
                                 "INSERT INTO receivers (name, type, address, city, contact) VALUES (%s, %s, %s, %s, %s)",
-                                (name, receiver_type, address, city, phone, contact)
+                                (name, receiver_type, address, city, contact)
                             )
                             conn.commit()
                             st.success("✅ Receiver added successfully!")
@@ -398,7 +405,7 @@ elif choice == "CRUD Operations":
                             # claim_date will be current datetime
                             current_datetime = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                             cursor.execute(
-                                "INSERT INTO claims (Claim_ID, receiver_id, quantity_claimed, status, claim_date) VALUES (%s, %s, %s, %s, %s)",
+                                "INSERT INTO claims (Claim_ID, receiver_id, quantity_claimed, status, timestamp) VALUES (%s, %s, %s, %s, %s)",
                                 (Claim_ID, receiver_id, quantity_claimed, status, current_datetime)
                             )
                             conn.commit()
@@ -442,7 +449,7 @@ elif choice == "CRUD Operations":
                         cursor.close()
 
                 name = st.text_input("New Provider Name", value=current_data.get("name", ""), max_chars=255)
-                provider_type = st.selectbox("New Provider Type", ["Restaurant", "NGO", "Individual", "Supermarket", "Catering Service"], index=["Restaurant", "NGO", "Individual", "Supermarket", "Catering Service"].index(current_data.get("type", "Restaurant")) if current_data.get("type") else 0, key="upd_prov_type")
+                provider_type = st.selectbox("New Provider Type", ["Restaurant", "NGO", "Grocery Store", "Individual", "Supermarket", "Catering Service"], index=["Restaurant", "NGO", "Grocery Store", "Individual", "Supermarket", "Catering Service"].index(current_data.get("type", "Restaurant")) if current_data.get("type") else 0, key="upd_prov_type")
                 address = st.text_input("New Address", value=current_data.get("address", ""), max_chars=255)
                 city = st.text_input("New City", value=current_data.get("city", ""), max_chars=100)
                 contact = st.text_input("New Phone", value=current_data.get("contact", ""), max_chars=20)
@@ -613,12 +620,12 @@ elif choice == "CRUD Operations":
                 if claim_id_to_update:
                     try:
                         cursor = conn.cursor()
-                        cursor.execute("SELECT Claim_ID, receiver_id, quantity_claimed, status, claim_date FROM claims WHERE claim_id = %s", (claim_id_to_update,))
+                        cursor.execute("SELECT Claim_ID, receiver_id, quantity_claimed, status, timestamp FROM claims WHERE claim_id = %s", (claim_id_to_update,))
                         result = cursor.fetchone()
                         if result:
                             current_data = {
                                 "Claim_ID": result[0], "receiver_id": result[1], "quantity_claimed": result[2],
-                                "status": result[3], "claim_date": result[4]
+                                "status": result[3], "timestamp": result[4]
                             }
                             st.info(f"Current data for Claim ID {claim_id_to_update} loaded. Fill fields to update.")
                         else:
@@ -679,18 +686,18 @@ elif choice == "CRUD Operations":
                 quantity_claimed = st.number_input("New Quantity Claimed (in kg)", min_value=0.1, step=0.1, value=float(current_data.get("quantity_claimed", 0.1)))
                 status_options = ["Pending", "Approved", "Rejected", "Completed", "Cancelled"]
                 status = st.selectbox("New Claim Status", status_options, index=status_options.index(current_data.get("status", "Pending")) if current_data.get("status") else 0, key="upd_claim_status")
-                claim_date = st.date_input("New Claim Date", value=current_data.get("claim_date", datetime.now().date()), key="upd_claim_date")
+                timestamp = st.date_input("New Claim Date", value=current_data.get("timestamp", datetime.now().date()), key="upd_claim_date")
 
                 submit_update_claim = st.form_submit_button("Update Claim")
                 if submit_update_claim:
-                    if claim_id_to_update and selected_Claim_ID_str and selected_receiver_id_str and quantity_claimed and status and claim_date:
+                    if claim_id_to_update and selected_Claim_ID_str and selected_receiver_id_str and quantity_claimed and status and timestamp:
                         try:
                             Claim_ID = int(selected_Claim_ID_str.split(' - ')[0])
                             receiver_id = int(selected_receiver_id_str.split(' - ')[0])
                             cursor = conn.cursor()
                             cursor.execute(
-                                "UPDATE claims SET Claim_ID=%s, receiver_id=%s, quantity_claimed=%s, status=%s, claim_date=%s WHERE claim_id=%s",
-                                (Claim_ID, receiver_id, quantity_claimed, status, claim_date, claim_id_to_update)
+                                "UPDATE claims SET Claim_ID=%s, receiver_id=%s, quantity_claimed=%s, status=%s, timestamp=%s WHERE claim_id=%s",
+                                (Claim_ID, receiver_id, quantity_claimed, status, timestamp, claim_id_to_update)
                             )
                             conn.commit()
                             if cursor.rowcount > 0:
@@ -806,96 +813,283 @@ elif choice == "CRUD Operations":
 #SQL Queries & Visualizations
 if choice == "SQL Queries & Visualizations":
     st.subheader("📊 SQL Queries & Visualizations")
+    # Clear other session states if they exist (important when integrating into a larger app)
+    if 'current_table_view' in st.session_state:
+        st.session_state.current_table_view = None
+    if 'crud_form_view' in st.session_state:
+        st.session_state.crud_form_view = None
 
-    # Food Providers and Receivers City Wise
-    if st.button("City Wise Providers and Receivers"):
-        df_providers = pd.read_sql("SELECT Provider_ID, Name, City, Contact FROM providers ORDER BY City", conn)
-        df_receivers = pd.read_sql("SELECT Receiver_ID, Name, City, Contact FROM receivers ORDER BY City", conn)
+    query_buttons_col1, query_buttons_col2, query_buttons_col3 = st.columns(3)
 
+    with query_buttons_col1:
+        if st.button("City Wise Providers and Receivers", key="city_wise_pr_btn"):
+            st.session_state.current_query_view = "city_wise_pr"
+        if st.button("Top Food Provider", key="top_food_provider_btn"):
+            st.session_state.current_query_view = "top_food_provider"
+        if st.button("Contact Info of Providers in City", key="contact_info_providers_btn"):
+            st.session_state.current_query_view = "contact_info_providers"
+        if st.button("Receiver with Most Claims", key="receiver_most_claims_btn"):
+            st.session_state.current_query_view = "receiver_most_claims"
+
+    with query_buttons_col2:
+        if st.button("Total Quantity of Food from Each Provider Type", key="total_qty_by_prov_type_btn"):
+            st.session_state.current_query_view = "total_qty_by_prov_type"
+        if st.button("City with Most Food Listings", key="city_most_listings_btn"):
+            st.session_state.current_query_view = "city_most_listings"
+        if st.button("Commonly Available Food Types", key="common_food_types_btn"):
+            st.session_state.current_query_view = "common_food_types"
+        if st.button("Food Claims by Item Type", key="claims_by_item_type_btn"):
+            st.session_state.current_query_view = "claims_by_item_type"
+
+    with query_buttons_col3:
+        if st.button("Provider with Highest Number of Claims", key="provider_highest_claims_btn"):
+            st.session_state.current_query_view = "provider_highest_claims"
+        if st.button("Claims Status Ratio", key="claims_status_ratio_btn"):
+            st.session_state.current_query_view = "claims_status_ratio"
+        if st.button("Average Quantity Claimed per Receiver", key="avg_qty_claimed_per_receiver_btn"):
+            st.session_state.current_query_view = "avg_qty_claimed_per_receiver"
+        if st.button("Most Claimed Meal Type", key="most_claimed_meal_type_btn"):
+            st.session_state.current_query_view = "most_claimed_meal_type"
+        if st.button("Total Quantity Donated by Each Provider", key="total_qty_donated_by_provider_btn"):
+            st.session_state.current_query_view = "total_qty_donated_by_provider"
+
+    st.markdown("---")
+
+    # --- Conditional Display of Query Results ---
+
+    if st.session_state.current_query_view == "city_wise_pr":
         st.subheader("🌆 City Wise Providers and Receivers")
-        
+        # Corrected column names: phone, email instead of Contact
+        df_providers = pd.read_sql("SELECT provider_id, name, city, phone, email FROM providers ORDER BY city", conn)
+        df_receivers = pd.read_sql("SELECT receiver_id, name, city, phone, email FROM receivers ORDER BY city", conn)
+
         st.write("### Providers")
         st.dataframe(df_providers)
 
         st.write("### Receivers")
         st.dataframe(df_receivers)
-    
-    #Food Provider Contributing the most food
-    if st.button("Top Food Provider"):
-        df = pd.read_sql("SELECT Provider_Type, SUM(Quantity) AS Total_Quantity FROM food_listings GROUP BY Provider_Type ORDER BY Total_Quantity DESC LIMIT 1", conn)
-        st.subheader("🥇 Top Food Provider")
-        if not df.empty:
-            st.dataframe(df)
-            # Plotting the top provider with other providers
-            st.bar_chart(df.set_index('Provider_Type'))
-        else:
-            st.write("No data available.")
 
-    #Contact Info of Food Providers in a Specific City
-    if st.button("Contact Info of Providers in City"):
-        df = pd.read_sql("SELECT Name, Address, Contact, City FROM providers ORDER BY City", conn)
-        st.dataframe(df)
-    
-    #Receiver with the Most Claims
-    if st.button("Receiver with Most Claims"):
-        df = pd.read_sql("SELECT r.Name, COUNT(c.Claim_ID) AS Total_Claims FROM claims c JOIN receivers r ON c.Receiver_ID = r.Receiver_ID GROUP BY r.Name ORDER BY Total_Claims DESC LIMIT 5", conn)
-        st.subheader("🏆 Receiver with Most Claims")
+    elif st.session_state.current_query_view == "top_food_provider":
+        st.subheader("🥇 Top Food Provider (by Total Quantity Donated)")
+        # Corrected: SUM(quantity) from food_listings, grouped by provider type
+        # Assuming 'type' is the column in 'providers' table for provider type
+        # And 'quantity' is the column in 'food_listings'
+        query = """
+        SELECT p.type, SUM(fl.quantity) AS Total_Quantity
+        FROM food_listings fl
+        JOIN providers p ON fl.provider_id = p.provider_id
+        GROUP BY p.type
+        ORDER BY Total_Quantity DESC
+        LIMIT 1
+        """
+        df = pd.read_sql(query, conn)
         if not df.empty:
             st.dataframe(df)
+            # Plotting the top provider with other providers (fetching all for plot)
+            df_all_providers_qty = pd.read_sql("""
+                SELECT p.type, SUM(fl.quantity) AS Total_Quantity
+                FROM food_listings fl
+                JOIN providers p ON fl.provider_id = p.provider_id
+                GROUP BY p.type
+                ORDER BY Total_Quantity DESC
+            """, conn)
+            fig, ax = plt.subplots(figsize=(10, 6))
+            sns.barplot(x='type', y='Total_Quantity', data=df_all_providers_qty, ax=ax, palette='viridis')
+            ax.set_title('Total Food Quantity Donated by Provider Type', fontsize=16)
+            ax.set_xlabel('Provider Type', fontsize=12)
+            ax.set_ylabel('Total Quantity (kg)', fontsize=12)
+            st.pyplot(fig)
         else:
-            st.write("No claims data available.")
+            st.info("No data available to determine the top food provider.")
+
+    elif st.session_state.current_query_view == "contact_info_providers":
+        st.subheader("📞 Contact Info of Providers in a Specific City")
         
-    #Total Quantity of Food available from each Provider
-    if st.button("Total Quantity of Food from Each Provider"):
-        df = pd.read_sql("SELECT Provider_Type, SUM(Quantity) AS Total_Quantity FROM food_listings GROUP BY Provider_Type", conn)
-        st.subheader("📊 Total Quantity of Food from Each Provider")
+        # Add a selectbox for city filter within this view
+        try:
+            provider_cities_query = "SELECT DISTINCT city FROM providers"
+            available_provider_cities_df = pd.read_sql(provider_cities_query, conn)
+            available_provider_cities = ["All"] + sorted(available_provider_cities_df["city"].tolist())
+        except Exception as e:
+            st.error(f"Could not fetch cities for provider contact info. Error: {e}")
+            available_provider_cities = ["All"]
+
+        city_selected_contact = st.selectbox("Select City", available_provider_cities, key="contact_prov_city_filter")
+
+        # Corrected column names: phone, email instead of Contact
+        query = "SELECT name, address, phone, email, city FROM providers WHERE 1=1"
+        params = []
+        if city_selected_contact != "All":
+            query += " AND city = %s"
+            params.append(city_selected_contact)
+        query += " ORDER BY city"
+
+        df = pd.read_sql(query, conn, params=tuple(params))
         if not df.empty:
             st.dataframe(df)
-            st.bar_chart(df.set_index('Provider_Type'))
         else:
-            st.write("No food listings available.")
-    
-    #City with the Most Food Listings
-    if st.button("City with Most Food Listings"):
-        df = pd.read_sql("SELECT Location, COUNT(*) AS Total_Listings FROM food_listings GROUP BY Location ORDER BY Total_Listings DESC LIMIT 1", conn)
+            st.info(f"No provider contact information found for {city_selected_contact}.")
+
+    elif st.session_state.current_query_view == "receiver_most_claims":
+        st.subheader("🏆 Receiver with Most Claims (Top 5)")
+        # Corrected: Use receiver_id from claims, join with receivers table
+        query = """
+        SELECT r.name, COUNT(c.claim_id) AS Total_Claims
+        FROM claims c
+        JOIN receivers r ON c.receiver_id = r.receiver_id
+        GROUP BY r.name
+        ORDER BY Total_Claims DESC
+        LIMIT 5
+        """
+        df = pd.read_sql(query, conn)
+        if not df.empty:
+            st.dataframe(df)
+            fig, ax = plt.subplots(figsize=(10, 6))
+            sns.barplot(x='name', y='Total_Claims', data=df, ax=ax, palette='magma')
+            ax.set_title('Top 5 Receivers by Number of Claims', fontsize=16)
+            ax.set_xlabel('Receiver Name', fontsize=12)
+            ax.set_ylabel('Total Claims', fontsize=12)
+            plt.xticks(rotation=45, ha='right')
+            st.pyplot(fig)
+        else:
+            st.info("No claims data available to determine receiver with most claims.")
+
+    elif st.session_state.current_query_view == "total_qty_by_prov_type":
+        st.subheader("📊 Total Quantity of Food from Each Provider Type")
+        # Corrected: SUM(quantity) from food_listings, grouped by provider type
+        query = """
+        SELECT p.type, SUM(fl.quantity) AS Total_Quantity
+        FROM food_listings fl
+        JOIN providers p ON fl.provider_id = p.provider_id
+        GROUP BY p.type
+        ORDER BY Total_Quantity DESC
+        """
+        df = pd.read_sql(query, conn)
+        if not df.empty:
+            st.dataframe(df)
+            fig, ax = plt.subplots(figsize=(10, 6))
+            sns.barplot(x='type', y='Total_Quantity', data=df, ax=ax, palette='viridis')
+            ax.set_title('Total Food Quantity Donated by Provider Type', fontsize=16)
+            ax.set_xlabel('Provider Type', fontsize=12)
+            ax.set_ylabel('Total Quantity (kg)', fontsize=12)
+            st.pyplot(fig)
+        else:
+            st.info("No food listings available to calculate total quantity by provider type.")
+
+    elif st.session_state.current_query_view == "city_most_listings":
         st.subheader("🌍 City with Most Food Listings")
+        # Corrected: Use location_city from food_listings
+        query = """
+        SELECT location_city, COUNT(*) AS Total_Listings
+        FROM food_listings
+        GROUP BY location_city
+        ORDER BY Total_Listings DESC
+        LIMIT 1
+        """
+        df = pd.read_sql(query, conn)
         if not df.empty:
             st.dataframe(df)
+            # Plotting all cities for context
+            df_all_cities = pd.read_sql("""
+                SELECT location_city, COUNT(*) AS Total_Listings
+                FROM food_listings
+                GROUP BY location_city
+                ORDER BY Total_Listings DESC
+            """, conn)
+            fig, ax = plt.subplots(figsize=(10, 6))
+            sns.barplot(x='location_city', y='Total_Listings', data=df_all_cities, ax=ax, palette='cubehelix')
+            ax.set_title('Total Food Listings by City', fontsize=16)
+            ax.set_xlabel('City', fontsize=12)
+            ax.set_ylabel('Total Listings', fontsize=12)
+            plt.xticks(rotation=45, ha='right')
+            st.pyplot(fig)
         else:
-            st.write("No food listings available.")
+            st.info("No food listings available to determine the city with most listings.")
 
-    #Common Available Food Types
-    if st.button("Commonly Available Food Types"):
-        df = pd.read_sql("SELECT Food_Type, COUNT(*) AS Total FROM food_listings GROUP BY Food_Type ORDER BY Total DESC", conn)
+    elif st.session_state.current_query_view == "common_food_types":
         st.subheader("🍽️ Commonly Available Food Types")
+        # Corrected: Use food_type from food_listings
+        query = """
+        SELECT food_type, COUNT(*) AS Total
+        FROM food_listings
+        GROUP BY food_type
+        ORDER BY Total DESC
+        """
+        df = pd.read_sql(query, conn)
         if not df.empty:
             st.dataframe(df)
-            st.bar_chart(df.set_index('Food_Type')['Total'])
+            fig, ax = plt.subplots(figsize=(10, 6))
+            sns.barplot(x='food_type', y='Total', data=df, ax=ax, palette='tab10')
+            ax.set_title('Commonly Available Food Types', fontsize=16)
+            ax.set_xlabel('Food Type', fontsize=12)
+            ax.set_ylabel('Total Listings', fontsize=12)
+            plt.xticks(rotation=45, ha='right')
+            st.pyplot(fig)
         else:
-            st.write("No food listings available.")
+            st.info("No food listings available to determine commonly available food types.")
 
-    #Food Claims by Item Type
-    if st.button("Food Claims by Item Type"):
-        df = pd.read_sql("SELECT f.Food_Name, COUNT(c.Claim_ID) AS Claim_Count FROM claims c JOIN food_listings f ON c.Food_ID = f.Food_ID GROUP BY f.Food_Name ORDER BY Claim_Count DESC;", conn)
+    elif st.session_state.current_query_view == "claims_by_item_type":
         st.subheader("📋 Food Claims by Item Type")
+        # Corrected: Use listing_id from claims, join with food_listings for food_item
+        query = """
+        SELECT fl.food_item, COUNT(c.claim_id) AS Claim_Count
+        FROM claims c
+        JOIN food_listings fl ON c.listing_id = fl.listing_id
+        GROUP BY fl.food_item
+        ORDER BY Claim_Count DESC
+        """
+        df = pd.read_sql(query, conn)
         if not df.empty:
             st.dataframe(df)
+            fig, ax = plt.subplots(figsize=(10, 6))
+            sns.barplot(x='food_item', y='Claim_Count', data=df, ax=ax, palette='GnBu_d')
+            ax.set_title('Food Claims by Item Type', fontsize=16)
+            ax.set_xlabel('Food Item', fontsize=12)
+            ax.set_ylabel('Claim Count', fontsize=12)
+            plt.xticks(rotation=45, ha='right')
+            st.pyplot(fig)
         else:
-            st.write("No claims data available.")
-    
-    #Provider with highest number of claims
-    if st.button("Provider with Highest Number of Claims"):
-        df = pd.read_sql("SELECT p.Name, COUNT(c.Claim_ID) AS Total_Claims FROM claims c JOIN food_listings f ON c.Food_ID = f.Food_ID JOIN providers p ON f.Provider_ID = p.Provider_ID GROUP BY p.Name ORDER BY Total_Claims DESC LIMIT 1", conn)
+            st.info("No claims data available for food claims by item type.")
+
+    elif st.session_state.current_query_view == "provider_highest_claims":
         st.subheader("🏅 Provider with Highest Number of Claims")
+        # Corrected: Join claims -> food_listings -> providers
+        query = """
+        SELECT p.name, COUNT(c.claim_id) AS Total_Claims
+        FROM claims c
+        JOIN food_listings fl ON c.listing_id = fl.listing_id
+        JOIN providers p ON fl.provider_id = p.provider_id
+        GROUP BY p.name
+        ORDER BY Total_Claims DESC
+        LIMIT 1
+        """
+        df = pd.read_sql(query, conn)
         if not df.empty:
             st.dataframe(df)
+            # Plotting all providers for context
+            df_all_providers_claims = pd.read_sql("""
+                SELECT p.name, COUNT(c.claim_id) AS Total_Claims
+                FROM claims c
+                JOIN food_listings fl ON c.listing_id = fl.listing_id
+                JOIN providers p ON fl.provider_id = p.provider_id
+                GROUP BY p.name
+                ORDER BY Total_Claims DESC
+            """, conn)
+            fig, ax = plt.subplots(figsize=(10, 6))
+            sns.barplot(x='name', y='Total_Claims', data=df_all_providers_claims, ax=ax, palette='rocket')
+            ax.set_title('Total Claims by Provider', fontsize=16)
+            ax.set_xlabel('Provider Name', fontsize=12)
+            ax.set_ylabel('Total Claims', fontsize=12)
+            plt.xticks(rotation=45, ha='right')
+            st.pyplot(fig)
         else:
-            st.write("No claims data available.")
-    
-    #Ratio of Completed Claims to Pending Claims to Cancelled Claims
-    if st.button("Claims Status Ratio"):
-        df = pd.read_sql("SELECT Status, COUNT(*) AS Count FROM claims GROUP BY Status", conn)
+            st.info("No claims data available to determine provider with highest claims.")
+
+    elif st.session_state.current_query_view == "claims_status_ratio":
         st.subheader("📊 Claims Status Ratio")
+        # Corrected: Use 'status' column from claims table
+        query = "SELECT status, COUNT(*) AS Count FROM claims GROUP BY status"
+        df = pd.read_sql(query, conn)
         
         if not df.empty:
             total_claims = df['Count'].sum()
@@ -903,37 +1097,91 @@ if choice == "SQL Queries & Visualizations":
             st.dataframe(df)
             
             # Plotting the ratio
-            st.bar_chart(df.set_index('Status')['Ratio'])
+            fig, ax = plt.subplots(figsize=(8, 6))
+            sns.barplot(x='status', y='Ratio', data=df, ax=ax, palette='pastel')
+            ax.set_title('Claims Status Ratio', fontsize=16)
+            ax.set_xlabel('Status', fontsize=12)
+            ax.set_ylabel('Ratio', fontsize=12)
+            st.pyplot(fig)
         else:
-            st.write("No claims data available.")
-    
-    #Average Quantity of Food Claimed per Receiver
-    if st.button("Average Quantity Claimed per Receiver"):
-        df = pd.read_sql("SELECT r.Name, AVG(f.Quantity) AS Average_Quantity FROM claims c JOIN food_listings f ON c.Food_ID = f.Food_ID JOIN receivers r ON c.Receiver_ID = r.Receiver_ID GROUP BY r.Name", conn)
+            st.info("No claims data available to calculate claims status ratio.")
+
+    elif st.session_state.current_query_view == "avg_qty_claimed_per_receiver":
         st.subheader("📈 Average Quantity of Food Claimed per Receiver")
+        # Corrected: Join claims -> food_listings (for quantity) -> receivers
+        query = """
+        SELECT r.name, AVG(c.quantity_claimed) AS Average_Quantity_Claimed
+        FROM claims c
+        JOIN receivers r ON c.receiver_id = r.receiver_id
+        GROUP BY r.name
+        ORDER BY Average_Quantity_Claimed DESC
+        """
+        df = pd.read_sql(query, conn)
         if not df.empty:
             st.dataframe(df)
+            fig, ax = plt.subplots(figsize=(10, 6))
+            sns.barplot(x='name', y='Average_Quantity_Claimed', data=df, ax=ax, palette='Greens_d')
+            ax.set_title('Average Quantity of Food Claimed per Receiver', fontsize=16)
+            ax.set_xlabel('Receiver Name', fontsize=12)
+            ax.set_ylabel('Average Quantity Claimed (kg)', fontsize=12)
+            plt.xticks(rotation=45, ha='right')
+            st.pyplot(fig)
         else:
-            st.write("No claims data available.")
-    
-    #Most Claimed Meal Type
-    if st.button("Most Claimed Meal Type"):
-        df = pd.read_sql("SELECT Meal_Type, COUNT(c.Claim_ID) AS Claim_Count FROM claims c JOIN food_listings f ON c.Food_ID = f.Food_ID GROUP BY Meal_Type ORDER BY Claim_Count DESC LIMIT 1", conn)
+            st.info("No claims data available to calculate average quantity claimed per receiver.")
+
+    elif st.session_state.current_query_view == "most_claimed_meal_type":
         st.subheader("🍽️ Most Claimed Meal Type")
+        # Corrected: Join claims -> food_listings for meal_type
+        query = """
+        SELECT fl.meal_type, COUNT(c.claim_id) AS Claim_Count
+        FROM claims c
+        JOIN food_listings fl ON c.listing_id = fl.listing_id
+        GROUP BY fl.meal_type
+        ORDER BY Claim_Count DESC
+        LIMIT 1
+        """
+        df = pd.read_sql(query, conn)
         if not df.empty:
             st.dataframe(df)
+            # Plotting all meal types for context
+            df_all_meal_types = pd.read_sql("""
+                SELECT fl.meal_type, COUNT(c.claim_id) AS Claim_Count
+                FROM claims c
+                JOIN food_listings fl ON c.listing_id = fl.listing_id
+                GROUP BY fl.meal_type
+                ORDER BY Claim_Count DESC
+            """, conn)
+            fig, ax = plt.subplots(figsize=(8, 6))
+            sns.barplot(x='meal_type', y='Claim_Count', data=df_all_meal_types, ax=ax, palette='Set2')
+            ax.set_title('Claims by Meal Type', fontsize=16)
+            ax.set_xlabel('Meal Type', fontsize=12)
+            ax.set_ylabel('Claim Count', fontsize=12)
+            st.pyplot(fig)
         else:
-            st.write("No claims data available.")
-    
-    #Total Quantity of Food donated by each Provider
-    if st.button("Total Quantity Donated by Each Provider"):
-        df = pd.read_sql("SELECT p.Name, SUM(f.Quantity) AS Total_Quantity FROM food_listings f JOIN providers p ON f.Provider_ID = p.Provider_ID GROUP BY p.Name", conn)
+            st.info("No claims data available to determine the most claimed meal type.")
+
+    elif st.session_state.current_query_view == "total_qty_donated_by_provider":
         st.subheader("📊 Total Quantity of Food Donated by Each Provider")
+        # Corrected: Join food_listings -> providers
+        query = """
+        SELECT p.name, SUM(fl.quantity) AS Total_Quantity
+        FROM food_listings fl
+        JOIN providers p ON fl.provider_id = p.provider_id
+        GROUP BY p.name
+        ORDER BY Total_Quantity DESC
+        """
+        df = pd.read_sql(query, conn)
         if not df.empty:
             st.dataframe(df)
-            st.bar_chart(df.set_index('Name')['Total_Quantity'])
+            fig, ax = plt.subplots(figsize=(10, 6))
+            sns.barplot(x='name', y='Total_Quantity', data=df, ax=ax, palette='Blues_d')
+            ax.set_title('Total Quantity of Food Donated by Each Provider', fontsize=16)
+            ax.set_xlabel('Provider Name', fontsize=12)
+            ax.set_ylabel('Total Quantity (kg)', fontsize=12)
+            plt.xticks(rotation=45, ha='right')
+            st.pyplot(fig)
         else:
-            st.write("No food listings available.")
+            st.info("No food listings available to calculate total quantity donated by each provider.")
     
 #Learner SQL Queries
 if choice == "Learner SQL Queries":
