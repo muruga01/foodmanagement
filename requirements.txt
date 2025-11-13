@@ -4,5 +4,5 @@ MySQLdb
 mysql.connector
 datetime
 matplotlib
-pyplotasplt
+pyplot
 seabornassns
