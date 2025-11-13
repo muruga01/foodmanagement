@@ -19,11 +19,11 @@ try:
     conn = MySQLdb.connect(
         host="127.0.0.1",
         user="root",
-        passwd="",  # use your actual MySQL password
+        passwd="",
         database="food_data"
     )
     cursor = conn.cursor()
-    st.success("✅ Connected to MySQL database")
+    # st.success("✅ Connected to MySQL database")
 except Exception as e:
     st.error(f"❌ Could not connect: {e}")
 
