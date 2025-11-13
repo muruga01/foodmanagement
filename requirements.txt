@@ -1,0 +1,8 @@
+streamlit
+pandas
+MySQLdb
+mysql.connector
+datetime
+matplotlib
+pyplotasplt
+seabornassns
