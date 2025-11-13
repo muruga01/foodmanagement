@@ -1,6 +1,6 @@
 streamlit
 pandas
-MySQLdb
+MySQLclient
 mysql.connector
 datetime
 matplotlib
